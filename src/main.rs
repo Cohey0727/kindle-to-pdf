@@ -21,19 +21,17 @@ fn click_at_position(x: f64, y: f64) {
     }
 }
 
-fn capture_right_half(file_number: u32) {
+fn capture_area(file_number: u32, left_top: (f64, f64), right_bottom: (f64, f64)) {
     let screen = Screen::from_point(0, 0).expect("Couldn't find screen from point");
-    let display = screen.display_info;
-    let (w, h) = (display.width, display.height);
 
-    // 右半分のスクリーンショットを取得
+    let x = left_top.0 as i32;
+    let y = left_top.1 as i32;
+    let width = (right_bottom.0 - left_top.0) as u32;
+    let height = (right_bottom.1 - left_top.1) as u32;
+
+    // 指定されたエリアのスクリーンショットを取得
     let screenshot = screen
-        .capture_area(
-            (w / 2).try_into().unwrap(),
-            0,
-            (w / 2).try_into().unwrap(),
-            h,
-        )
+        .capture_area(x, y, width, height)
         .expect("Couldn't capture screenshot");
 
     // outputsディレクトリを作成（存在しない場合）
@@ -48,6 +46,7 @@ fn capture_right_half(file_number: u32) {
         .save(file_path)
         .expect("Couldn't save screenshot");
 }
+
 fn main() {
     println!("ページ数を入力してください:");
 
@@ -62,8 +61,6 @@ fn main() {
 
     let current_position_clone = Arc::clone(&current_position);
     let click_position_clone = Arc::clone(&click_position);
-
-    println!("画面の送りボタンをクリックしてください。");
 
     thread::spawn(move || {
         let callback = move |event: Event| match event.event_type {
@@ -84,22 +81,67 @@ fn main() {
         }
     });
 
-    // ユーザーがクリックして位置が記録されるのを待つ
-    let mut position_recorded = false;
-    let mut click_pos = (0.0, 0.0);
-    while !position_recorded {
+    // 左上の座標が記録されるのを待つ
+    println!("左上の座標をクリックしてください。");
+    let left_top;
+    loop {
         thread::sleep(Duration::from_millis(100));
-        let click_position_guard = click_position.lock().unwrap();
-        if let Some((x, y)) = *click_position_guard {
-            println!("クリックされた位置: ({}, {})", x, y);
-            click_pos = (x, y);
-            position_recorded = true;
+        if let Some(pos) = *click_position.lock().unwrap() {
+            left_top = pos;
+            break;
         }
     }
 
+    // クリック位置をリセット
+    *click_position.lock().unwrap() = None;
+
+    // 右下の座標が記録されるのを待つ
+    println!("右下の座標をクリックしてください。");
+    let right_bottom;
+    loop {
+        thread::sleep(Duration::from_millis(100));
+        if let Some(pos) = *click_position.lock().unwrap() {
+            right_bottom = pos;
+            break;
+        }
+    }
+
+    // クリック位置をリセット
+    *click_position.lock().unwrap() = None;
+
+    // 画面の送りボタンの座標が記録されるのを待つ
+    println!("画面の戻るボタンをクリックしてください。");
+    let prev_button_pos;
+    loop {
+        thread::sleep(Duration::from_millis(100));
+        if let Some(pos) = *click_position.lock().unwrap() {
+            prev_button_pos = pos;
+            break;
+        }
+    }
+
+    // クリック位置をリセット
+    *click_position.lock().unwrap() = None;
+
+    // 画面の送りボタンの座標が記録されるのを待つ
+    println!("画面の送りボタンをクリックしてください。");
+    let next_button_pos;
+    loop {
+        thread::sleep(Duration::from_millis(100));
+        if let Some(pos) = *click_position.lock().unwrap() {
+            next_button_pos = pos;
+            break;
+        }
+    }
+
+    // ページを最初に戻す
+    click_at_position(prev_button_pos.0, prev_button_pos.1);
+
+    // 指定されたページ数だけスクリーンショットを取得
     for file_number in 0..page_count {
-        click_at_position(click_pos.0, click_pos.1);
-        capture_right_half(file_number);
-        thread::sleep(Duration::from_millis(1000));
+        println!("{}ページ目のスクリーンショットを取得中...", file_number + 1);
+        capture_area(file_number, left_top, right_bottom);
+        click_at_position(next_button_pos.0, next_button_pos.1);
+        thread::sleep(Duration::from_millis(300));
     }
 }
