@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 rdev = "0.5.3"
-minifb = "0.26.0"
+screenshots = "0.8.10"
